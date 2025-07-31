@@ -1,0 +1,49 @@
+name: Release Helm Chart
+
+on:
+  release:
+    types: [published]
+  push:
+
+jobs:
+  build-helm-repo:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: v3.18.4
+
+      - name: Package chart
+        run: |
+          mkdir -p build
+          helm package charts/* --destination build
+          helm package . --destination build
+
+      - name: Update Helm repo index
+        run: |
+          helm repo index build --url https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+
+      - name: Upload static files as artifact
+        id: deployment
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/
+
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-helm-repo
+    permissions:
+      pages: write
+      id-token: write
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
