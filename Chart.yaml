@@ -2,29 +2,29 @@ apiVersion: v2
 name: auditor-kubernetes-stack
 description: AUDITOR collctor stack for Kubernetes
 type: application
-version: 0.8.3
-appVersion: 0.8.3
+version: 0.9.0
+appVersion: 0.9.0
 kubeVersion: '>=1.28.0-0'
 home: https://alu-schumacher.github.io/AUDITOR
 
 dependencies:
 - name: auditor
-  version: "~ 0.8.3"
+  version: ~0.9.0
   repository: https://rkleinem.github.io/helmcharts/
   condition: auditor.enabled
 
 - name: auditor-collector
-  version: "~ 0.8.3"
+  version: ~0.9.0
   repository: https://rkleinem.github.io/helmcharts/
   condition: auditor-collctor.enabled
 
 - name: auditor-prometheus
-  version: "~ 0.8.3"
+  version: ~0.9.0
   repository: https://rkleinem.github.io/helmcharts/
   condition: auditor-prometheus.enabled
 
 - name: auditor-apel
-  version: "~ 0.8.3"
+  version: ~0.9.0
   repository: https://rkleinem.github.io/helmcharts/
   condition: auditor-apel.enabled
 
