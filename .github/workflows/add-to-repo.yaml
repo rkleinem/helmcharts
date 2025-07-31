@@ -21,8 +21,8 @@ jobs:
       - name: Package chart
         run: |
           mkdir -p build
-          helm build charts/* --destination build
-          helm build . --destination build
+          helm package charts/* --destination build
+          helm package . --destination build
 
       - name: Update Helm repo index
         run: |
