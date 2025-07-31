@@ -1,0 +1,11 @@
+authorityKeyIdentifier = keyid:always,issuer:always
+subjectKeyIdentifier = hash
+basicConstraints = critical, CA:FALSE
+keyUsage = critical, digitalSignature, keyEncipherment
+extendedKeyUsage = clientAuth
+subjectAltName = @alt_names
+crlDistributionPoints = URI:http://darkhttpd:8080/myca.crl
+
+[alt_names]
+DNS.1 = localhost
+DNS.2 = localhost.localdomain

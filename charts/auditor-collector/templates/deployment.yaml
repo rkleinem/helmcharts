@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "auditor-collector.fullname" . }}
+  labels:
+    {{- include "auditor-collector.labels" . | nindent 4 }}
+  annotations:
+    {{- $annotations := merge .Values.commonAnnotations .Values.deployment.annotations }}
+    {{- toYaml $annotations | nindent 4 }}
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  #strategy:
+  #  type: RollingUpdate
+  #  rollingUpdate:
+  #    maxSurge: 1
+  #    maxUnavailable: 1
+  selector:
+    matchLabels:
+      {{- include "auditor-collector.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "auditor-collector.labels" . | nindent 8 }}
+      annotations:
+        {{- $annotations := merge .Values.commonAnnotations .Values.deployment.podAnnotations }}
+        {{- $_ := set $annotations "checksum/config" (.Values.config | toJson | sha256sum) }}
+        {{- toYaml $annotations | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "auditor-collector.serviceAccountName" . }}
+      automountServiceAccountToken: true
+      securityContext:
+        runAsUser: {{ .Values.deployment.uid }}
+        runAsGroup: {{ .Values.deployment.gid }}
+        fsGroup: {{ .Values.deployment.gid }}
+      containers:
+      - name: collector
+        image: {{ include "auditor-collector.image" . }}
+        imagePullPolicy: {{ .Values.deployment.pullPolicy }}
+        volumeMounts:
+          - name: config
+            mountPath: /auditor/config.yaml
+            subPath: config.yaml
+            readOnly: true
+          {{- if .Values.persistentVolume.use }}
+          - name: persistent-data
+            mountPath: /data
+          {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "auditor-collector.fullname" . }}
+        {{- if .Values.persistentVolume.use }}
+        - name: persistent-data
+          persistentVolumeClaim:
+            claimName: {{ include "auditor-collector.fullname" . }}
+        {{- end }}
+      #nodeSelector:
+      #  kubernetes.io/os: linux

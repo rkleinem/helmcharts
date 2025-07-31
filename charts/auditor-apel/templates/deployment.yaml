@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "auditor-apel.fullname" . }}
+  labels:
+    {{- include "auditor-apel.labels" . | nindent 4 }}
+  annotations:
+    {{- merge .Values.deployment.annotations .Values.commonAnnotations | toYaml | nindent 4 }}
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      {{- include "auditor-apel.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "auditor-apel.labels" . | nindent 8 }}
+      annotations:
+        {{- merge .Values.deployment.annotations .Values.commonAnnotations | toYaml | nindent 8 }}
+    spec:
+      securityContext:
+        runAsUser: {{ .Values.deployment.uid }}
+        runAsGroup: {{ .Values.deployment.gid }}
+        fsGroup: {{ .Values.deployment.gid }}
+      containers:
+      - name: apel-plugin
+        image: {{ include "auditor-apel.image" . }}
+        imagePullPolicy: {{ .Values.deployment.pullPolicy }}
+        env:
+          - name: PYTHONUNBUFFERED
+            value: "1"
+        command: ["auditor-apel-publish"]
+        args: ["-c", "/auditor/config.yaml"]
+        volumeMounts:
+          - name: config
+            mountPath: /auditor/config.yaml
+            subPath: config.yaml
+            readOnly: true
+          - name: client-cert
+            mountPath: /auditor/client.pem
+            subPath: client.pem
+            readOnly: true
+          - name: ca-cert
+            mountPath: /auditor/ca.pem
+            subPath: ca.pem
+            readOnly: true
+          - name: client-key
+            mountPath: /auditor/client.key
+            subPath: client.key
+            readOnly: true
+          {{- if .Values.persistentVolume.use }}
+          - name: persistent-data
+            mountPath: /auditor/data
+          {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "auditor-apel.fullname" . }}
+        - name: client-cert
+          configMap:
+            name: apel-client-cert
+        - name: ca-cert
+          configMap:
+            name: apel-ca-cert
+        - name: client-key
+          secret:
+            secretName: client-cert-key
+        {{- if .Values.persistentVolume.use }}
+        - name: persistent-data
+          persistentVolumeClaim:
+            claimName: {{ include "auditor-apel.fullname" . }}
+        {{- end }}
+      #nodeSelector:
+      #  kubernetes.io/os: linux

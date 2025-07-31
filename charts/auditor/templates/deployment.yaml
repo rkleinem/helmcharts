@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "auditor.fullname" . }}
+  labels:
+    {{- include "auditor.labels" . | nindent 4 }}
+  annotations:
+    {{- $annotations := merge .Values.commonAnnotations .Values.deployment.annotations }}
+    {{- toYaml $annotations| nindent 4 }}
+spec:
+  replicas: 1
+  #revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      {{- include "auditor.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "auditor.labels" . | nindent 8 }}
+      annotations:
+        {{- $annotations := merge .Values.commonAnnotations .Values.deployment.podAnnotations }}
+        {{- $_ := set $annotations "checksum/config" (.Values.config | toJson | sha256sum) }}
+        {{- toYaml $annotations | nindent 8 }}
+    spec:
+      initContainers:
+      - name: auditor-migrate
+        image: {{ tpl .Values.deployment.image $ }}
+        args: ["migrate"]
+        env:
+          - name: AUDITOR_DATABASE__DATABASE_NAME
+            value: {{ .Values.config.database.database_name }}
+          - name: AUDITOR_DATABASE__USERNAME
+            value: {{ .Values.config.database.username }}
+          - name: AUDITOR_DATABASE__PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: postgres-secret
+                key: password
+          - name: AUDITOR_DATABASE__PORT
+            value: {{ quote .Values.config.database.port }}
+          - name: AUDITOR_DATABASE__HOST
+            value: {{ .Values.config.database.host }}
+          - name: AUDITOR_DATABASE__REQUIRE_SSL
+            value: {{ .Values.config.database.require_ssl | quote }}
+      containers:
+      - name: auditor
+        image: {{ tpl .Values.deployment.image $ }}
+        args: ["auditor", "/auditor/config.yaml"]
+        ports:
+          - containerPort: {{ include "auditor.serverport" . }}
+        volumeMounts:
+          - name: config
+            mountPath: /auditor/config.yaml
+            subPath: auditor.yml
+            readOnly: true
+        #lifecycle:
+        #  postStart:
+        #    exec:
+        #      #command: ["./entrypoint.sh", "migrate"]
+        #      command: ["/bin/cat", "/auditor/config.yaml"]
+        readinessProbe:
+          httpGet:
+            path: /health_check
+            port: {{ include "auditor.serverport" . }}
+          initialDelaySeconds: 5
+          periodSeconds: 10
+
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "auditor.fullname" . }}
+      #nodeSelector:
+      #  kubernetes.io/os: linux

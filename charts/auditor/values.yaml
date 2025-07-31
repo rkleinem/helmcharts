@@ -1,0 +1,54 @@
+# Default values for auditor.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Overrides the name of the chart
+nameOverride: ""
+# Overrides the fully qualified name of the chart
+fullnameOverride: ""
+
+commonAnnotations: {}
+
+deployment:
+  annotations: {}
+  podAnnotations: {}
+  image: "aluschumacher/auditor:{{ .Chart.AppVersion }}"
+
+config:
+  annotations: {}
+  #
+  application:
+    addr:
+      - 0.0.0.0
+      - ::1
+  # This section is overwritten by the parent chart.
+  # You only need to fill it if you want to use this chart as stand-alone.
+  database:
+    host: # Hostname
+    port:
+    username:
+    password:
+    database_name:
+    require_ssl:
+  metrics:
+    database:
+      frequency: 300
+      metrics:
+        - RecordCount
+        - RecordCountPerSite
+        - RecordCountPerGroup
+        - RecordCountPerUser
+  logLevel: "info"
+
+service:
+  annotations: {}
+  #type: NodePort
+  type: ClusterIP
+  # Must not start with "auditor", see
+  # https://kubernetes.io/docs/concepts/services-networking/service/#environment-variables
+  name: "svc-auditor"
+  port: 8000
+  #nodePort: 31001
+
+secret:
+  annotations: {}
