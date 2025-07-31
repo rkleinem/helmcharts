@@ -6,7 +6,7 @@ on:
   push:
 
 jobs:
-  release:
+  build-helm-repo:
     runs-on: ubuntu-latest
 
     steps:
@@ -16,34 +16,50 @@ jobs:
       - name: Set up Helm
         uses: azure/setup-helm@v3
         with:
-          version: v3.14.0
+          version: v3.18.4
 
       - name: Package chart
         run: |
           mkdir -p packaged
           helm package . --destination packaged
 
-      - name: Checkout gh-pages branch
-        uses: actions/checkout@v4
-        with:
-          ref: gh-pages
-          path: gh-pages
+      #- name: Checkout gh-pages branch
+      #  uses: actions/checkout@v4
+      #  with:
+      #    ref: gh-pages
+      #    path: gh-pages
 
-      - name: Copy packaged chart
-        run: |
-          cp packaged/*.tgz gh-pages/
+      #- name: Copy packaged chart
+      #  run: |
+      #    cp packaged/*.tgz gh-pages/
 
       - name: Update Helm repo index
         run: |
-          helm repo index . --url https://rkleinem.github.io/helmcharts/
-        working-directory: gh-pages
+          helm repo index .. --url https://rkleinem.github.io/helmcharts/
+        #working-directory: gh-pages
+        working-directory: packaged
 
-      - name: Commit and push to gh-pages
-        run: |
-          cd gh-pages
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add .
-          git commit -m "Release chart from ${{ github.ref_name }}" || echo "No changes to commit"
-          git push
+      - name: Upload static files as artifact
+        id: deployment
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: packaged/
+
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-helm-repo
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      #- name: Commit and push to gh-pages
+      #  run: |
+      #    cd gh-pages
+      #    git config user.name "github-actions[bot]"
+      #    git config user.email "github-actions[bot]@users.noreply.github.com"
+      #    git add .
+      #    git commit -m "Release chart from ${{ github.ref_name }}" || echo "No changes to commit"
+      #    git push
 
