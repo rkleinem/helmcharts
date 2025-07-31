@@ -25,8 +25,8 @@ jobs:
 
       - name: Update Helm repo index
         run: |
-          helm repo index .. --url https://rkleinem.github.io/helmcharts/
-        working-directory: packaged
+          helm repo index packaged --url https://rkleinem.github.io/helmcharts/
+        #working-directory: packaged
 
       - name: Upload static files as artifact
         id: deployment
