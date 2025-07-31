@@ -1,0 +1,49 @@
+name: Release Helm Chart
+
+on:
+  release:
+    types: [published]
+  push:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: v3.14.0
+
+      - name: Package chart
+        run: |
+          mkdir -p packaged
+          helm package . --destination packaged
+
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages
+
+      - name: Copy packaged chart
+        run: |
+          cp packaged/*.tgz gh-pages/
+
+      - name: Update Helm repo index
+        run: |
+          helm repo index . --url https://rkleinem.github.io/helmcharts/
+        working-directory: gh-pages
+
+      - name: Commit and push to gh-pages
+        run: |
+          cd gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Release chart from ${{ github.ref_name }}" || echo "No changes to commit"
+          git push
+
