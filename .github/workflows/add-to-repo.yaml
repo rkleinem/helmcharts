@@ -20,19 +20,19 @@ jobs:
 
       - name: Package chart
         run: |
-          mkdir -p packaged
-          helm package charts/* --destination packaged
-          helm package . --destination packaged
+          mkdir -p build
+          helm build charts/* --destination build
+          helm build . --destination build
 
       - name: Update Helm repo index
         run: |
-          helm repo index packaged --url https://rkleinem.github.io/helmcharts/
+          helm repo index build --url https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
 
       - name: Upload static files as artifact
         id: deployment
         uses: actions/upload-pages-artifact@v3
         with:
-          path: packaged/
+          path: build/
 
 
   deploy:
