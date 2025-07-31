@@ -22,7 +22,6 @@ jobs:
         run: |
           mkdir -p packaged
           helm package charts/* --destination packaged
-          rm -rf charts/*
           helm package . --destination packaged
 
       - name: Update Helm repo index
