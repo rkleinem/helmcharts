@@ -21,12 +21,11 @@ jobs:
       - name: Package chart
         run: |
           mkdir -p packaged
-          helm package . --destination packaged
+          helm package charts/* --destination packaged
 
       - name: Update Helm repo index
         run: |
           helm repo index packaged --url https://rkleinem.github.io/helmcharts/
-        #working-directory: packaged
 
       - name: Upload static files as artifact
         id: deployment
