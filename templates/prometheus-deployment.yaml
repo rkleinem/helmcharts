@@ -1,0 +1,116 @@
+{{ if .Values.prometheus.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "prometheus.fullname" . }}
+  labels:
+    {{- include "prometheus.labels" . | nindent 4 }}
+  annotations:
+    {{- $annotations := merge (include "prometheus.commonAnnotations" . | fromYaml) .Values.prometheus.deployment.annotations }}
+    {{- toYaml $annotations | nindent 4 }}
+spec:
+  replicas: 1
+  #revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      {{- include "prometheus.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "prometheus.labels" . | nindent 8 }}
+      annotations:
+        {{- $annotations := merge (include "prometheus.commonAnnotations" . | fromYaml) .Values.prometheus.deployment.podAnnotations }}
+        {{- $checksum := (cat .Values.prometheus.config .Values.global.certs.ca_cert .Values.prometheus.certs.prom_cert .Values.prometheus.certs.prom_key) | toJson | sha256sum }}
+        {{- $_ := set $annotations "checksum/config" $checksum }}
+        {{- toYaml $annotations | nindent 8 }}
+    spec:
+      {{/*#{{ if .Values.persistentVolume.use }}
+      #initContainers:
+      #- name: init-storage
+      #  image: {{ tpl .Values.prometheus.image $ }} #busybox
+      #  securityContext:
+      #    #privileged: true
+      #    runAsUser: 0
+      #  env:
+      #  - name: PROMUSER
+      #    value: {{ quote .Values.prometheus.uid }}
+      #  - name: PROMGROUP
+      #    value: {{ quote .Values.prometheus.gid }}
+      #  command:
+      #    - 'sh'
+      #    - '-c'
+      #    - 'chown $PROMUSER:$PROMGROUP /prometheus'
+      #  volumeMounts:
+      #  - name: prometheus-data
+      #    mountPath: /prometheus
+      #{{ end }}*/}}
+      securityContext:
+        runAsUser: {{ .Values.prometheus.deployment.uid }}
+        runAsGroup: {{ .Values.prometheus.deployment.gid }}
+        fsGroup: {{ .Values.prometheus.deployment.gid }}
+        #allowPrivilegeEscalation: false
+      containers:
+      - name: prometheus
+        image: {{ include "prometheus.image" . }}
+        imagePullPolicy: {{ .Values.prometheus.deployment.pullPolicy }}
+        args:
+          - "--config.file=/etc/prometheus/prometheus.yml"
+          - "--storage.tsdb.path=/prometheus"
+          {{- if .Values.prometheus.config.use_tls }}
+          - "--web.config.file=/etc/prometheus/web.yml"
+          {{- end }}
+          - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+          - "--web.console.templates=/usr/share/prometheus/consoles"
+        ports:
+          - containerPort: 9090
+        volumeMounts:
+          - name: config
+            mountPath: /etc/prometheus/prometheus.yml
+            subPath: prometheus.yml
+            readOnly: true
+          - name: config
+            mountPath: /etc/prometheus/web.yml
+            subPath: web.yml
+            readOnly: true
+          - name: config
+            mountPath: /etc/prometheus/ca.pem
+            subPath: ca.pem
+            readOnly: true
+          {{- if .Values.prometheus.config.use_tls }}
+          - name: certs
+            mountPath: /etc/prometheus/prom.pem
+            subPath: tls.crt
+            readOnly: true
+          - name: certs
+            mountPath: /etc/prometheus/prom.key
+            subPath: tls.key
+            readOnly: true
+          {{- end }}
+          {{- if .Values.prometheus.persistentVolume.use }}
+          - name: prometheus-data
+            mountPath: /prometheus
+          {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "prometheus.fullname" . }}
+        {{- if .Values.prometheus.config.use_tls }}
+        - name: certs
+          secret:
+            secretName: prom-certs
+        {{- end }}
+        {{- if .Values.prometheus.persistentVolume.use }}
+        - name: prometheus-data
+          persistentVolumeClaim:
+            claimName: {{ include "prometheus.fullname" . }}
+        {{- end }}
+      #nodeSelector:
+      #  kubernetes.io/os: linux
+      serviceAccountName: {{ include "prometheus.serviceAccountName" . }}
+      automountServiceAccountToken: true
+{{ end }}

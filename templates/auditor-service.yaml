@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.auditor.service.name }}
+  labels:
+    {{- include "auditor.labels" . | nindent 4 }}
+  annotations:
+    {{- $annotations := merge (include "auditor.commonAnnotations" . | fromYaml) .Values.auditor.service.annotations }}
+    {{- toYaml $annotations | nindent 4 }}
+spec:
+  type: {{ quote .Values.auditor.service.type }}
+  selector:
+    {{- include "auditor.selectorLabels" . | nindent 4 }}
+  ports:
+    - protocol: TCP
+      port: {{ .Values.auditor.service.port }}
+      targetPort: {{ include "auditor.exposedPort" . }}
+      {{ if eq .Values.auditor.service.type "NodePort" }}
+      nodePort: {{ .Values.auditor.service.nodePort }}
+      {{ end }}
+

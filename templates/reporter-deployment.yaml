@@ -1,0 +1,97 @@
+{{- if .Values.apelReporter.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "auditor-apel.fullname" . }}
+  labels:
+    {{- include "auditor-apel.labels" . | nindent 4 }}
+  annotations:
+    {{- $annotations := merge (include "auditor-apel.commonAnnotations" . | fromYaml) .Values.apelReporter.deployment.annotations }}
+    {{- toYaml $annotations| nindent 4 }}
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      {{- include "auditor-apel.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "auditor-apel.labels" . | nindent 8 }}
+      annotations:
+        {{- $annotations := merge (include "auditor-apel.commonAnnotations" . | fromYaml) .Values.apelReporter.deployment.podAnnotations }}
+        {{- $certs := .Values.global.certs.ca_cert }}
+        {{- $certs := cat $certs .Values.apelReporter.auditorcerts.reporter_cert }}
+        {{- $certs := cat $certs .Values.apelReporter.auditorcerts.reporter_key }}
+        {{- $certs := cat $certs .Values.apelReporter.apelcerts.apelclient_ca }}
+        {{- $certs := cat $certs .Values.apelReporter.apelcerts.apelclient_cert }}
+        {{- $certs := cat $certs .Values.apelReporter.apelcerts.apelclient_key }}
+        {{- $checksum := (cat .Values.apelReporter.config $certs) | toJson | sha256sum }}
+        {{- $_ := set $annotations "checksum/config" $checksum }}
+        {{- toYaml $annotations | nindent 8 }}
+    spec:
+      securityContext:
+        runAsUser: {{ .Values.apelReporter.deployment.uid }}
+        runAsGroup: {{ .Values.apelReporter.deployment.gid }}
+        fsGroup: {{ .Values.apelReporter.deployment.gid }}
+      containers:
+      - name: apel-plugin
+        image: {{ include "auditor-apel.image" . }}
+        env:
+          - name: PYTHONUNBUFFERED
+            value: "1"
+          {{- if .Values.apelReporter.apelcerts.apelclient_ca }}
+          - name: REQUESTS_CA_BUNDLE
+            value: "/auditor/apelCA.pem"
+          {{- end }}
+        command: ["auditor-apel-publish"]
+        args: ["-c", "/auditor/config.yaml"]
+        volumeMounts:
+          - name: config
+            mountPath: /auditor/config.yaml
+            subPath: config.yaml
+            readOnly: true
+          {{- if .Values.apelReporter.config.auditor.use_tls }}
+          - name: config
+            mountPath: /auditor/auditorCA.pem
+            subPath: auditorCA.pem
+            readOnly: true
+          - name: auditor-cert
+            mountPath: /auditor/reporter.pem
+            subPath: tls.crt
+            readOnly: true
+          - name: auditor-cert
+            mountPath: /auditor/reporter.key
+            subPath: tls.key
+            readOnly: true
+          {{- end }}
+          - name: apel-cert
+            mountPath: /auditor/apelclient.pem
+            subPath: tls.crt
+            readOnly: true
+          - name: apel-cert
+            mountPath: /auditor/apelclient.key
+            subPath: tls.key
+            readOnly: true
+          {{- if .Values.apelReporter.persistentVolume.use }}
+          - name: persistent-data
+            mountPath: /auditor/data
+          {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "auditor-apel.fullname" . }}
+        - name: auditor-cert
+          secret:
+            secretName: reporter-auditor-certs
+        - name: apel-cert
+          secret:
+            secretName: reporter-apel-certs
+        {{- if .Values.apelReporter.persistentVolume.use }}
+        - name: persistent-data
+          persistentVolumeClaim:
+            claimName: {{ include "auditor-apel.fullname" . }}
+        {{- end }}
+      #nodeSelector:
+      #  kubernetes.io/os: linux
+{{- end }}

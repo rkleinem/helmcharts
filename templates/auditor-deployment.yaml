@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "auditor.fullname" . }}
+  labels:
+    {{- include "auditor.labels" . | nindent 4 }}
+  annotations:
+    {{- $annotations := merge (include "auditor.commonAnnotations" . | fromYaml) .Values.auditor.deployment.annotations }}
+    {{- toYaml $annotations | nindent 4 }}
+spec:
+  replicas: 1
+  #revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      {{- include "auditor.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "auditor.labels" . | nindent 8 }}
+      annotations:
+        {{- $annotations := merge (include "auditor.commonAnnotations" . | fromYaml) .Values.auditor.deployment.podAnnotations }}
+        {{- $checksum := (cat .Values.auditor.config .Values.global.certs.ca_cert .Values.auditor.certs.auditor_cert .Values.auditor.certs.auditor_key) | toJson | sha256sum }}
+        {{- $_ := set $annotations "checksum/config" $checksum }}
+        {{- toYaml $annotations | nindent 8 }}
+    spec:
+      containers:
+      - name: auditor
+        image: {{ tpl .Values.auditor.deployment.image $ }}
+        args: ["auditor", "/auditor/config.yaml"]
+        #ports:
+        #  - containerPort: {{ include "auditor.httpPort" . }}
+        volumeMounts:
+          - name: config
+            mountPath: /auditor/config.yaml
+            subPath: auditor.yml
+            readOnly: true
+          - name: config
+            mountPath: /auditor/ca.pem
+            subPath: ca.pem
+            readOnly: true
+          {{- if .Values.auditor.config.tls_config.use_tls }}
+          - name: certs
+            mountPath: /auditor/server.pem
+            subPath: tls.crt
+            readOnly: true
+          - name: certs
+            mountPath: /auditor/server.key
+            subPath: tls.key
+            readOnly: true
+          {{- end }}
+        startupProbe:
+          tcpSocket:
+            port: {{ include "auditor.exposedPort" . }}
+          failureThreshold: 30
+          periodSeconds: 10
+        livenessProbe:
+          tcpSocket:
+            port: {{ include "auditor.exposedPort" . }}
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /health_check
+            port: {{ include "auditor.httpPort" . }}
+          initialDelaySeconds: 10
+          periodSeconds: 60
+
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "auditor.fullname" . }}
+        - name: pg-pass
+          secret:
+            secretName: auditor-secrets-postgres
+        {{- if .Values.auditor.config.tls_config.use_tls }}
+        - name: certs
+          secret:
+            secretName: auditor-secrets-auditor
+        {{- end }}
+      #nodeSelector:
+      #  kubernetes.io/os: linux

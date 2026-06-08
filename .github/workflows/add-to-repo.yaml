@@ -1,9 +1,12 @@
-name: Release Helm Chart
+name: Test and release Helm Chart
 
 on:
+  push:
+    branches:
+      - '**'
   release:
     types: [published]
-  push:
+
 
 jobs:
   build-helm-repo:
@@ -11,17 +14,22 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Helm
         uses: azure/setup-helm@v3
         with:
-          version: v3.18.4
+          version: v4.1.3
+
+      - name: Install kind
+        uses: helm/kind-action@v1
+
+      - name: Lint chart
+        run: helm lint . --strict
 
       - name: Package chart
         run: |
           mkdir -p build
-          helm package charts/* --destination build
           helm package . --destination build
 
       - name: Update Helm repo index
@@ -30,14 +38,18 @@ jobs:
 
       - name: Upload static files as artifact
         id: deployment
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: build/
 
 
   deploy:
-    runs-on: ubuntu-latest
     needs: build-helm-repo
+    if: >
+      github.ref == 'refs/heads/master' ||
+      github.event_name == 'release'
+
+    runs-on: ubuntu-latest
     permissions:
       pages: write
       id-token: write
@@ -45,5 +57,5 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 

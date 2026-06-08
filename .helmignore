@@ -10,5 +10,10 @@
 *.bak
 *.tmp
 *.orig
+*.pem
+*.key
 *~
 build
+certs
+packaged
+x509

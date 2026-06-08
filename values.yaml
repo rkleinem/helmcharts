@@ -2,9 +2,28 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
+global:
+  commonAnnotations: {}
+  certs:
+    # If true, all certificates need to be provided as file paths.
+    # If false, all ceritifcates need to be provided as strings.
+    useFiles: true
+    # CA to accept by all AUDITOR components.
+    # Has signed AUDITOR server and client certs.
+    ca_cert: certs/rootCA.pem
+
+
+
 auditor:
   enabled: true
+  # The AUDITOR server ceritifcate
+  certs:
+    auditor_cert: certs/auditor.pem
+    auditor_key: certs/auditor.key
   config:
+    annotations: {}
+    application:
+      web_workers: 2
     database:
       host: 192.168.178.49 # Hostname
       port: "5433"
@@ -12,26 +31,234 @@ auditor:
       password: super_safe
       database_name: auditor
       require_ssl: false
-
-auditor-prometheus:
-  enabled: true
+    logLevel: "info"
+    tls_config:
+      use_tls: true
+      ca_cert_path: /auditor/ca.pem
+      server_cert_path: /auditor/server.pem
+      server_key_path:  /auditor/server.key
+    metrics:
+      database:
+        frequency: 300
+        metrics:
+          - RecordCount
+          - RecordCountPerSite
+          - RecordCountPerGroup
+          - RecordCountPerUser
+  nameOverride: null      # Override for name
+  fullnameOverride: null  # Override for object name
+  commonAnnotations: {}
+  deployment:
+    annotations: {}
+    podAnnotations: {}
+    image: "aluschumacher/auditor:{{ .Chart.AppVersion }}"
   service:
+    annotations: {}
+    #type: NodePort
+    type: ClusterIP
+    # Must not start with "auditor", see
+    # https://kubernetes.io/docs/concepts/services-networking/service/#environment-variables
+    name: "svc-auditor"
+    port: 8000
+    #nodePort: 31001
+  secret:
+    annotations: {}
+
+
+
+prometheus:
+  enabled: true
+  # Prometheus server certificate. Is checked by the
+  # collector and needs to be signed by the CA cert.
+  certs:
+    prom_cert: certs/prometheus.pem
+    prom_key: certs/prometheus.key
+  nameOverride: null      # Override for name
+  fullnameOverride: null  # Override for object name
+  commonAnnotations: {}
+  deployment:
+    annotations: {}
+    podAnnotations: {}
+    uid: 65534
+    gid: 65534
+    registry: prom
+    repository: prometheus
+    # Overrides the image tag whose default is "latest"
+    #tag: null                                                                  
+    tag: v3
+    pullPolicy: IfNotPresent                                                   
+  service:
+    annotations: {}
     name: prom-svc
   config:
+    annotations: {}
+    use_tls: true
     # For which namespaces data will be collected
     # No filter will be applied if empty
     namespaces:
       - default
+      - foo
+  persistentVolume:
+    use: false
 
-auditor-collector:
+
+
+collector:
   enabled: true
-  collector:
-    config:
-      auditorAddress : auditor-svc
-      prometheusAddress: prom-svc
-
-auditor-apel:
-  enabled: false
+  nameOverride: null      # Override for name
+  fullnameOverride: null  # Override for object name
+  commonAnnotations: {}
+  deployment:
+    annotations: {}
+    podAnnotations: {}
+    uid: 65534
+    gid: 65534
+    registry: "aluschumacher"
+    #registry: "192.168.178.49:5000"
+    repository: "auditor-kubernetes-collector"
+    # Overrides the image tag whose default is the chart appVersion.           
+    tag: latest
+    #tag: null                                                                  
+    #pullPolicy: IfNotPresent                                                   
+    pullPolicy: Always  # Testing
+  # The client cert presented to AUDITOR
+  certs:
+    collector_cert: certs/collector.pem
+    collector_key: certs/collector.key
   config:
+    annotations: {}
+    auditorAddress: svc-auditor
+    prometheusAddress: prom-svc
+    prometheusPort: 9090
+    #logLevel: info
+    logLevel: debug
+    earliestDatetime: "2026-04-10T00:00:00+01:00"
+    tls_config:
+      use_tls: true
+      ca_cert_path: /auditor/ca.pem
+      client_cert_path: /auditor/collector.pem
+      client_key_path:  /auditor/collector.key
+  service:
+    annotations: {}
+  persistentVolume:
+    use: false
+
+
+
+apelReporter:
+  enabled: true
+  nameOverride: null      # Override for name
+  fullnameOverride: null  # Override for object name
+  commonAnnotations: {}
+
+  deployment:
+    annotations: {}
+    podAnnotations: {}
+    uid: 65534
+    gid: 65534
+    ## Image to use
+    registry: aluschumacher
+    repository: "auditor-apel-plugin"
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: null
+
+  secret:
+    annotations: {}
+
+  persistentVolume:
+    use: false
+    #annotations:
+    #  pv.beta.kubernetes.io/gid: "210"
+    size: "100Mi"
+    nodeAffinity:
+      required:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: kubernetes.io/hostname
+            operator: In
+            values: [""]
+    type:
+      local:
+        path: /srv/auditor/apel
+
+  # The client certificate presented to AUDITOR
+  auditorcerts:
+    reporter_cert: certs/reporter.pem
+    reporter_key: certs/reporter.key
+  apelcerts:
+    apelclient_ca: certs/apel_ca.pem
+    apelclient_cert: certs/apel.pem
+    apelclient_key: certs/apel.key
+  config:
+    annotations: {}
+    plugin:
+      log_level: INFO
+      time_json_path: /var/tmp/time.json
+      report_interval: 60
+      message_type: summaries
+
+    site:
+      publish_since: 2024-07-17 06:00:00Z
+      sites_to_report:
+        # GOC to auditor
+        wuppertalprod: ["wuppertal"]
+
+    messaging:
+      #host: ams
+      host: msg.argo.grnet.gr
+      #host: 10.8.0.4
+      # This is the port for authn. Argo uses 8443.
+      # The reporter always uses 443 for the messenger itself.
+      port: 8443
+      # If we want to use a custom CA for APEL connections,
+      # we need to use python requests mechanisms, i.e.
+      # REQUESTS_CA_BUNDLE env variable
+      client_cert: /auditor/apelclient.pem
+      client_key: /auditor/apelclient.key
+      project: accounting
+      topic: gLite-APEL
+      #topic: topic1
+      timeout: 10
+      retry: 3
+
     auditor:
-      ip: auditor-svc
+      ip: svc-auditor
+      port: 8000
+      timeout: 20
+      site_meta_field: site_id
+      use_tls: true
+      ca_cert_path: /auditor/auditorCA.pem
+      client_cert_path: /auditor/reporter.pem
+      client_key_path: /auditor/reporter.key
+
+    summary_fields:
+      mandatory:
+        NormalisedWallDuration: !NormalisedField
+          score:
+            name: HEPSPEC06
+            component_name: Cores
+        CpuDuration: !ComponentField
+          name: TotalCPU
+          divide_by: 1000
+        NormalisedCpuDuration: !NormalisedField
+          base_value: !ComponentField
+            name: TotalCPU
+            divide_by: 1000
+          score:
+            name: HEPSPEC06
+            component_name: Cores
+        VO: !MetaField
+          name: user_id
+          regex: 'atlas|ops'
+        Processors: !ComponentField
+          name: Cores
+        SubmitHost: !ConstantField
+          value: k8s-test.pleiades
+      optional:
+        Infrastructure: !ConstantField
+          value: grid
+        NodeCount: !ComponentField
+          name: NNodes
+
+
+

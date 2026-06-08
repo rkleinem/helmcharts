@@ -1,0 +1,30 @@
+{{- if .Values.collector.persistentVolume.use }}
+{{- if keys .Values.collector.persistentVolume.type | has "local" }}
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ include "collector.fullname" . }}
+  labels:
+    {{- include "collector.labels" . | nindent 4 }}
+  annotations: 
+    {{- toYaml (include "collector.commonAnnotations" .) | nindent 4 }}
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+---
+{{- end }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "collector.fullname" . }}
+  labels:
+    {{- include "collector.labels" . | nindent 4 }}
+  annotations: 
+    {{- toYaml (include "collector.commonAnnotations" .) | nindent 4 }}
+spec:
+  storageClassName: {{ include "collector.fullname" . }}
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.collector.persistentVolume.size }}
+{{- end }}

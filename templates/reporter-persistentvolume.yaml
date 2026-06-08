@@ -1,0 +1,23 @@
+{{- if and .Values.apelReporter.enabled .Values.apelReporter.persistentVolume.use }}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ include "auditor-apel.fullname" . }}
+  labels:
+    {{- include "auditor-apel.labels" . | nindent 4 }}
+  annotations:
+    {{- $annotations := merge (include "auditor-apel.commonAnnotations" . | fromYaml) .Values.apelReporter.persistentVolume.annotations }}
+    {{- toYaml $annotations | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  claimRef:
+    name: {{ include "auditor-apel.fullname" . }}
+    namespace: {{ .Release.Namespace }}
+  nodeAffinity:
+  {{- toYaml .Values.apelReporter.persistentVolume.nodeAffinity | nindent 4 }}
+  capacity:
+    storage: {{ .Values.apelReporter.persistentVolume.size }}
+  storageClassName: {{ include "auditor-apel.fullname" . }}
+  {{- toYaml .Values.apelReporter.persistentVolume.type | nindent 2 }}
+{{- end }}

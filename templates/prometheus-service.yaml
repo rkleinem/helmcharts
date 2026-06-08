@@ -1,0 +1,22 @@
+{{ if .Values.prometheus.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.prometheus.service.name }}
+  labels:
+    {{- include "prometheus.labels" . | nindent 4 }}
+  annotations:
+    {{- $annotations := merge (include "prometheus.commonAnnotations" . | fromYaml) .Values.prometheus.service.annotations }}
+    {{- toYaml $annotations | nindent 4 }}
+spec:
+  type: {{ quote .Values.prometheus.service.type }}
+  selector:
+    {{- include "prometheus.selectorLabels" . | nindent 4 }}
+  ports:
+    - protocol: TCP
+      port: 9090
+      targetPort: 9090
+      {{ if eq .Values.prometheus.service.type "NodePort" }}
+      nodePort: {{ .Values.prometheus.service.nodePort }}
+      {{ end }}
+{{ end }}

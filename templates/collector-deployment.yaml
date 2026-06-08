@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "collector.fullname" . }}
+  labels:
+    {{- include "collector.labels" . | nindent 4 }}
+  annotations:
+    {{- $annotations := merge (include "collector.commonAnnotations" . | fromYaml) .Values.collector.deployment.annotations }}
+    {{- toYaml $annotations | nindent 4 }}
+spec:
+  replicas: 1
+  #revisionHistoryLimit: 3
+  #strategy:
+  #  type: RollingUpdate
+  #  rollingUpdate:
+  #    maxSurge: 1
+  #    maxUnavailable: 1
+  selector:
+    matchLabels:
+      {{- include "collector.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "collector.labels" . | nindent 8 }}
+      annotations:
+        {{- $annotations := merge (include "collector.commonAnnotations" . | fromYaml) .Values.collector.deployment.podAnnotations }}
+        {{- $checksum := (cat .Values.collector.config .Values.global.certs.ca_cert .Values.collector.certs.collector_cert .Values.collector.certs.collector_key) | toJson | sha256sum }}
+        {{- $_ := set $annotations "checksum/config" $checksum }}
+        {{- toYaml $annotations | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "collector.serviceAccountName" . }}
+      automountServiceAccountToken: true
+      securityContext:
+        runAsUser: 0  #{{ .Values.collector.deployment.uid }}
+        runAsGroup: {{ .Values.collector.deployment.gid }}
+        fsGroup: {{ .Values.collector.deployment.gid }}
+      containers:
+      - name: collector
+        image: {{ include "collector.image" . }}
+        imagePullPolicy: {{ .Values.collector.deployment.pullPolicy }}
+        env:
+          - name: RUST_BACKTRACE
+            value: "full"
+        volumeMounts:
+          - name: config
+            mountPath: /auditor/config.yaml
+            subPath: config.yaml
+            readOnly: true
+          - name: config
+            mountPath: /auditor/ca.pem
+            subPath: ca.pem
+            readOnly: true
+          {{- if .Values.prometheus.config.use_tls }}
+          - name: config
+            mountPath: /auditor/prom_ca.pem
+            subPath: ca.pem
+            readOnly: true
+          {{- end }}
+          {{- if .Values.collector.config.tls_config.use_tls }}
+          - name: certs
+            mountPath: /auditor/collector.pem
+            subPath: tls.crt
+            readOnly: true
+          - name: certs
+            mountPath: /auditor/collector.key
+            subPath: tls.key
+            readOnly: true
+          {{- end }}
+          {{- if .Values.collector.persistentVolume.use }}
+          - name: persistent-data
+            mountPath: /data
+          {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "collector.fullname" . }}
+        {{- if .Values.collector.config.tls_config.use_tls }}
+        - name: certs
+          secret:
+            secretName: collector-secrets
+        {{- end }}
+        {{- if .Values.collector.persistentVolume.use }}
+        - name: persistent-data
+          persistentVolumeClaim:
+            claimName: {{ include "collector.fullname" . }}
+        {{- end }}
+      #nodeSelector:
+      #  kubernetes.io/os: linux

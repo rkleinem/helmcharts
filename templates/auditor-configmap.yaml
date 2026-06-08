@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "auditor.fullname" . }}
+  labels:
+    {{- include "auditor.labels" . | nindent 4 }}
+  annotations:
+    {{- $annotations := merge (include "auditor.commonAnnotations" . | fromYaml) .Values.auditor.config.annotations }}
+    {{- toYaml $annotations | nindent 4 }}
+data:
+  auditor.yml: |-
+    {{- with .Values.auditor }}
+    application:
+      addr:
+        - 0.0.0.0
+      port: {{ include "auditor.httpPort" . }}
+    database:
+      {{- toYaml .config.database | nindent 6 }}
+    metrics:
+      {{- toYaml .config.metrics | nindent 6 }}
+    log_level: {{ default "info" .config.logLevel }}
+    tls_config:
+      {{- toYaml .config.tls_config | nindent 6 }}
+      https_port: {{ include "auditor.httpsPort" . }}
+    {{- if .config.tls_config.use_tls }}
+    rbac_config:
+      enforce_rbac: true
+      write_access_cn:
+        - collector
+      read_access_cn:
+        - reporter
+    {{- end }}
+    {{- end }}
+  ca.pem: |
+    {{- if .Values.global.certs.useFiles -}}
+    {{ .Files.Get .Values.global.certs.ca_cert | nindent 4 }}
+    {{- else -}}
+    {{ .Values.global.certs.ca_cert | nindent 4 }}
+    {{- end }}

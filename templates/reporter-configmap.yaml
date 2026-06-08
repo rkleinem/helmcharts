@@ -1,0 +1,27 @@
+{{- if .Values.apelReporter.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "auditor-apel.fullname" . }}
+  labels:
+    {{- include "auditor-apel.labels" . | nindent 4 }}
+  annotations:
+    {{- $annotations := merge (include "auditor-apel.commonAnnotations" . | fromYaml) .Values.apelReporter.config.annotations }}
+    {{- toYaml $annotations | nindent 4 }}
+data:
+  config.yaml: |-
+    !Config
+    {{ toYaml .Values.apelReporter.config | nindent 4 }}
+  auditorCA.pem: |
+    {{- if .Values.global.certs.useFiles -}}
+    {{ .Files.Get .Values.global.certs.ca_cert | nindent 4 }}
+    {{- else -}}
+    {{ .Values.global.certs.ca_cert | nindent 4 }}
+    {{- end }}
+  apelCA.pem: |
+    {{- if .Values.global.certs.useFiles -}}
+    {{ .Files.Get .Values.apelReporter.apelcerts.apelclient_ca | nindent 4 }}
+    {{- else -}}
+    {{ .Values.apelReporter.apelcerts.apelclient_ca | nindent 4 }}
+    {{- end }}
+{{- end }}

@@ -1,0 +1,22 @@
+{{- if .Values.collector.persistentVolume.use }}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ include "collector.fullname" . }}
+  labels:
+    {{- include "collector.labels" . | nindent 4 }}
+  annotations: 
+    {{- toYaml (include "collector.commonAnnotations" .) | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  claimRef:
+    name: {{ include "collector.fullname" . }}
+    namespace: {{ .Release.Namespace }}
+  nodeAffinity:
+  {{- toYaml .Values.collector.persistentVolume.nodeAffinity | nindent 4 }}
+  capacity:
+    storage: {{ .Values.collector.persistentVolume.size }}
+  storageClassName: {{ include "collector.fullname" . }}
+  {{- toYaml .Values.collector.persistentVolume.type | nindent 2 }}
+{{- end }}

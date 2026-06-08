@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "collector.fullname" . }}
+  labels:
+    {{- include "collector.labels" . | nindent 4 }}
+  annotations:
+    {{- $annotations := merge (include "collector.commonAnnotations" . | fromYaml) .Values.collector.config.annotations }}
+    {{- toYaml $annotations | nindent 4 }}
+data:
+  config.yaml: |-
+    {{- with .Values.collector.config }}
+    auditor_addr: {{ quote .auditorAddress }}
+    {{ if .auditorPort -}}
+    auditor_port: {{ .auditorPort }}
+    {{ end -}}
+    prometheus_addr: {{ quote .prometheusAddress }}
+    prometheus_port: {{ .prometheusPort }}
+    {{ if $.Values.prometheus.config.use_tls -}}
+    prometheus_ca: /auditor/prom_ca.pem
+    {{ end -}}
+    database_path: /data
+    {{ if .recordPrefix -}}
+    record_prefix: {{ quote .recordPrefix }}
+    {{ end -}}
+    {{ if .earliestDatetime -}}
+    earliest_datetime: {{ quote .earliestDatetime }}
+    {{ end -}}
+    {{ if .auditorTimeout -}}
+    auditor_timeout: {{ .auditorTimeout }}
+    {{ end -}}
+    {{ if .prometheusTimeout -}}
+    prometheus_timeout: {{ .prometheusTimeout }}
+    {{ end -}}
+    job_filter:
+      {{ if .namespaces -}}
+      namespace:
+      {{- toYaml .namespaces | nindent 6 }}
+      {{ end -}}
+      {{ if .labels -}}
+      labels:
+      {{- toYaml .labels | nindent 6 }}
+      {{ end }}
+    {{ if .collectInterval -}}
+    collect_interval: {{ .collectInterval }}
+    {{ end -}}
+    {{ if .sendInterval -}}
+    merge_interval: {{ .mergeInterval }}
+    {{ end -}}
+    {{ if .backlogInterval -}}
+    backlog_interval: {{ .backlogInterval }}
+    {{ end -}}
+    {{ if .backlogMaxretries -}}
+    backlog_maxretries: {{ .backlogMaxretries }}
+    {{ end -}}
+    {{ if .logLevel -}}
+    log_level: {{ .logLevel }}
+    {{ end -}}
+    tls_config:
+      {{- toYaml .tls_config | nindent 6 }}
+    {{- end }}
+  ca.pem: |
+    {{- if .Values.global.certs.useFiles -}}
+    {{ .Files.Get .Values.global.certs.ca_cert | nindent 4 }}
+    {{- else -}}
+    {{ .Values.global.certs.ca_cert | nindent 4 }}
+    {{- end }}
