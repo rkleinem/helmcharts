@@ -1,0 +1,27 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: testjob
+  labels:
+    app: test
+spec:
+  parallelism: 1
+  completions: 1
+  template:
+    metadata:
+      labels:
+        app: test
+    spec:
+      containers:
+      - name: alpine
+        image: alpine
+        resources:
+          requests:
+            memory: "50Mi"
+          limits:
+            cpu: 333m
+            memory: "128Mi"
+        command: ["sh", "-c", "sleep 10; echo foo"]
+      restartPolicy: Never
+  backoffLimit: 3
+

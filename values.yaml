@@ -52,6 +52,7 @@ auditor:
     annotations: {}
     podAnnotations: {}
     image: "aluschumacher/auditor:{{ .Chart.AppVersion }}"
+    autoMigrate: true
   service:
     annotations: {}
     #type: NodePort

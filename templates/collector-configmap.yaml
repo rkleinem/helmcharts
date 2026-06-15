@@ -44,7 +44,7 @@ data:
     {{ if .collectInterval -}}
     collect_interval: {{ .collectInterval }}
     {{ end -}}
-    {{ if .sendInterval -}}
+    {{ if .mergeInterval -}}
     merge_interval: {{ .mergeInterval }}
     {{ end -}}
     {{ if .backlogInterval -}}

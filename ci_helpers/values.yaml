@@ -1,0 +1,50 @@
+global:
+  certs:
+    useFiles: true
+    ca_cert: ci_certs/rootCA.pem
+
+auditor:
+  enabled: true
+  certs:
+    auditor_cert: ci_certs/auditor.pem
+    auditor_key: ci_certs/auditor.key
+  config:
+    database:
+      host: postgres.default.svc.cluster.local
+      #host: postgres
+      port: "5433"
+      username: auditor
+      password: super_safe
+      database_name: auditor
+      require_ssl: false
+  deployment:
+    autoMigrate: true
+
+
+prometheus:
+  enabled: true
+  certs:
+    prom_cert: ci_certs/prometheus.pem
+    prom_key: ci_certs/prometheus.key
+  config:
+    scrapeInterval: 2s
+    use_tls: false  # Change when we have the new collector version
+    namespaces:
+      - default
+      - foo
+
+
+collector:
+  enabled: true
+  certs:
+    collector_cert: ci_certs/collector.pem
+    collector_key: ci_certs/collector.key
+  config:
+    collectInterval: 3
+    mergeInterval: 3
+    backlogInterval: 10
+
+
+# We would need a permanent APEL testserver to test the reporter
+apelReporter:
+  enabled: false

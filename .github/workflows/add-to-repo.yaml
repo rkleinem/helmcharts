@@ -12,6 +12,21 @@ jobs:
   build-helm-repo:
     runs-on: ubuntu-latest
 
+    #services:
+    #  postgres:
+    #    image: postgres:16
+    #    env:
+    #      POSTGRES_USER: auditor
+    #      POSTGRES_PASSWORD: super_safe
+    #      POSTGRES_DB: auditor
+    #    ports:
+    #      - 5433:5432
+    #    options: >-
+    #      --health-cmd "pg_isready --dbname=auditor --username=auditor"
+    #      --health-interval 5s
+    #      --health-timeout 5s
+    #      --health-retries 5
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -26,6 +41,60 @@ jobs:
 
       - name: Lint chart
         run: helm lint . --strict
+
+      - name: Set up pluto
+        uses: FairwindsOps/pluto/github-action@master
+
+      - name: Use pluto
+        run: |
+          pluto detect-helm -n auditor
+          helm template . | pluto detect -
+
+      #- name: Install jq
+      #  run: |
+      #    sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Start postgres
+        run: |
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm install postgres bitnami/postgresql \
+            --set auth.username=auditor \
+            --set auth.database=auditor \
+            --set auth.password=super_safe \
+            --set fullnameOverride=postgres \
+            --set global.postgresql.service.ports.postgresql=5433 \
+            --wait
+
+      #- name: Debug postgres
+      #  run: |
+      #    kubectl run pg-test --rm -i --image=postgres:16 -- \
+      #      bash -c "sleep 5; pg_isready -h postgres.default.svc.cluster.local -p 5433 -U auditor -d auditor"
+
+      - name: Install Chart
+        run: |
+          ./install.sh -A -- \
+            --values=ci_helpers/values.yaml \
+            --wait
+
+      - name: Run a test job
+        run: |
+          kubectl apply -f ci_helpers/testjob.yaml
+
+      - name: Wait for job
+        run: |
+          kubectl wait \
+            --for=condition=complete \
+            job --selector=app=test \
+            --timeout=1m
+
+      #- name: Debug
+      #  run: |
+      #    sleep 15
+      #    kubectl logs -n auditor deployments/auditor-collector-auditor-kubernetes-stack
+
+      - name: Check for records in AUDITOR
+        run: |
+          ./ci_helpers/check_for_entries.sh
 
       - name: Package chart
         run: |
