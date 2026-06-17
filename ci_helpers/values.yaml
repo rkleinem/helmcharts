@@ -27,7 +27,7 @@ prometheus:
     prom_cert: ci_certs/prometheus.pem
     prom_key: ci_certs/prometheus.key
   config:
-    scrapeInterval: 2s
+    scrapeInterval: 3s
     use_tls: false  # Change when we have the new collector version
     namespaces:
       - default
@@ -40,8 +40,8 @@ collector:
     collector_cert: ci_certs/collector.pem
     collector_key: ci_certs/collector.key
   config:
-    collectInterval: 3
-    mergeInterval: 3
+    collectInterval: 5
+    mergeInterval: 5
     backlogInterval: 10
 
 
